@@ -1,0 +1,523 @@
+/***********************************************************************
+ * Bluetooth Joystick-Controlled Quadruped Robot
+ * ---------------------------------------------
+ * Commands:
+ *   F - Forward
+ *   B - Backward
+ *   L - Turn Left
+ *   R - Turn Right
+ *   W - Smooth Walk (in place)
+ *   D - Wavy Dance
+ *   S - Sit
+ *   U - Stand
+ ***********************************************************************/
+
+#include <Servo.h>
+#include <math.h>
+
+Servo servo[4][3];
+
+// Servo pin layout (3 per leg)
+const int servo_pin[4][3] = {
+  {2, 3, 4},     // Front Left
+  {5, 6, 7},     // Front Right
+  {8, 9, 10},    // Back Left
+  {11, 12, 13}   // Back Right
+};
+
+// Neutral servo angles (tweak if your servos are offset)
+int neutral[4][3] = {
+  {90, 90, 90},
+  {90, 90, 90},
+  {90, 90, 90},
+  {90, 90, 90}
+};
+
+// Movement settings
+float walkAmplitude = 20.0;
+float liftAmplitude = 15.0;
+float turnAmplitude = 15.0;
+float waveAmplitude = 25.0;
+float speed = 0.08;
+
+// ------------------------------------------------------------
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Quadruped Bluetooth Joystick Control Ready!");
+
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 3; j++) {
+      servo[i][j].attach(servo_pin[i][j]);
+      servo[i][j].write(neutral[i][j]);
+      delay(30);
+    }
+  }
+
+  delay(500);
+  Serial.println("Commands: F,B,L,R,W,D,S,U");
+}
+
+// ------------------------------------------------------------
+
+void moveLeg(int leg, int coxa, int femur, int tibia) {
+  coxa  = constrain(coxa, 0, 180);
+  femur = constrain(femur, 0, 180);
+  tibia = constrain(tibia, 0, 180);
+  servo[leg][0].write(coxa);
+  servo[leg][1].write(femur);
+  servo[leg][2].write(tibia);
+}
+
+// ------------------------------------------------------------
+// --- MOVEMENT FUNCTIONS ---
+
+void smoothWalk() {
+  for (float t = 0; t < 2 * PI; t += speed) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float swing = walkAmplitude * sin(t + phase);
+      float lift  = liftAmplitude * max(0.0, sin(t + phase));
+
+      moveLeg(leg,
+              neutral[leg][0] + swing,
+              neutral[leg][1] - lift,
+              neutral[leg][2] + lift / 2.0);
+    }
+    delay(20);
+  }
+}
+
+void forward() {
+  Serial.println("Moving Forward");
+  for (float t = 0; t < 2 * PI; t += speed) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float swing = walkAmplitude * sin(t + phase);
+      float lift  = liftAmplitude * max(0.0, sin(t + phase));
+
+      // Front legs push backward, back legs pull forward
+      int dir = (leg < 2) ? 1 : -1;
+
+      moveLeg(leg,
+              neutral[leg][0] + dir * swing,
+              neutral[leg][1] - lift,
+              neutral[leg][2] + lift / 2.0);
+    }
+    delay(20);
+  }
+}
+
+void backward() {
+  Serial.println("Moving Backward");
+  for (float t = 0; t < 2 * PI; t += speed) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float swing = -walkAmplitude * sin(t + phase);
+      float lift  = liftAmplitude * max(0.0, sin(t + phase));
+
+      int dir = (leg < 2) ? 1 : -1;
+
+      moveLeg(leg,
+              neutral[leg][0] + dir * swing,
+              neutral[leg][1] - lift,
+              neutral[leg][2] + lift / 2.0);
+    }
+    delay(20);
+  }
+}
+
+void turnLeft() {
+  Serial.println("Turning Left");
+  for (float t = 0; t < 2 * PI; t += speed) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float swing = turnAmplitude * sin(t + phase);
+      float lift  = liftAmplitude * max(0.0, sin(t + phase));
+
+      // Left legs push backward, right legs forward
+      int dir = (leg == 0 || leg == 2) ? 1 : -1;
+
+      moveLeg(leg,
+              neutral[leg][0] + dir * swing,
+              neutral[leg][1] - lift,
+              neutral[leg][2] + lift / 2.0);
+    }
+    delay(20);
+  }
+}
+
+void turnRight() {
+  Serial.println("Turning Right");
+  for (float t = 0; t < 2 * PI; t += speed) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float swing = turnAmplitude * sin(t + phase);
+      float lift  = liftAmplitude * max(0.0, sin(t + phase));
+
+      // Right legs push backward, left legs forward
+      int dir = (leg == 1 || leg == 3) ? 1 : -1;
+
+      moveLeg(leg,
+              neutral[leg][0] + dir * swing,
+              neutral[leg][1] - lift,
+              neutral[leg][2] + lift / 2.0);
+    }
+    delay(20);
+  }
+}
+
+void wavyDance() {
+  Serial.println("Wavy Dance Mode!");
+  for (float t = 0; t < 4 * PI; t += speed / 2) {
+    for (int leg = 0; leg < 4; leg++) {
+      float phase = leg * (PI / 2.0);
+      float wave  = waveAmplitude * sin(t + phase);
+
+      moveLeg(leg,
+              neutral[leg][0] + wave,
+              neutral[leg][1] + 10 * sin(t + phase + PI / 3),
+              neutral[leg][2] + 10 * sin(t + phase + 2 * PI / 3));
+    }
+    delay(25);
+  }
+}
+
+// ------------------------------------------------------------
+
+void sit() {
+  for (int i = 0; i < 4; i++)
+    moveLeg(i, 90, 120, 150);
+  delay(1000);
+}
+
+void stand() {
+  for (int i = 0; i < 4; i++)
+    moveLeg(i, neutral[i][0], neutral[i][1], neutral[i][2]);
+  delay(1000);
+}
+
+// ------------------------------------------------------------
+
+void loop() {
+  if (Serial.available()) {
+    char cmd = toupper(Serial.read());
+
+    switch (cmd) {
+      case 'F': forward(); break;
+      case 'B': backward(); break;
+      case 'L': turnLeft(); break;
+      case 'R': turnRight(); break;
+      case 'W': smoothWalk(); break;
+      case 'D': wavyDance(); break;
+      case 'S': sit(); break;
+      case 'U': stand(); break;
+      default:
+        Serial.println("Use F,B,L,R,W,D,S,U");
+        break;
+    }
+  }
+}
+
+
+
+
+THIS ONE IF FOR INVERSE KINEMATICS
+
+/* IK Quadruped: Bluetooth controlled
+   - Uses measured sizes from STL files (approx)
+   - Commands: F B L R W D S U (Forward, Back, Left, Right, Walk, Dance, Sit, Stand)
+   - Assumptions: femur ~82mm, tibia ~97mm, coxa offset ~27.5mm (adjust below)
+*/
+
+#include <Servo.h>
+#include <math.h>
+
+#define NUM_LEGS 4
+
+// Servo pins (3 per leg): {coxa, femur, tibia}
+const int servo_pin[NUM_LEGS][3] = {
+  {2, 3, 4},    // leg 0 (front-left)
+  {5, 6, 7},    // leg 1 (front-right)
+  {8, 9, 10},   // leg 2 (rear-left)
+  {11, 12, 13}  // leg 3 (rear-right)
+};
+
+Servo servo[NUM_LEGS][3];
+
+// ----------------- ROBOT GEOMETRY (edit if you calibrate) -----------------
+// All lengths in mm (change if you measure differently)
+float length_femur = 82.0;        // distance femur joint -> tibia joint
+float length_tibia = 97.25;       // tibia length (knee -> foot)
+float length_coxa_offset = 27.5;  // horizontal offset from coxa rotation axis to femur plane
+
+// Body stance offsets (foot default positions relative to body)
+float default_x = 62.0;   // forward distance from body to foot (x)
+float default_y = 40.0;   // lateral offset (y-step)
+float default_z = -50.0;  // vertical (negative = down)
+
+// Neutral servo angles (tune when mounted)
+int neutralServo[NUM_LEGS][3] = {
+  {90, 90, 90},
+  {90, 90, 90},
+  {90, 90, 90},
+  {90, 90, 90}
+};
+
+// movement params
+float walkStride = 30.0;    // how far foot swings forward/back
+float liftHeight = 30.0;    // how high foot lifts
+float gaitSpeed = 0.06;     // lower = slower & smoother
+float danceSpeed = 0.06;
+float turnFactor = 18.0;    // amplitude for turning
+float bodyPitch = 0.0;      // degrees: + pitch nose-up
+float bodyRoll = 0.0;       // degrees: + roll right side up
+
+// internal state: desired foot positions in body coords
+struct Foot { float x, y, z; };
+Foot footTarget[NUM_LEGS];
+Foot footCurrent[NUM_LEGS];
+
+char incoming = 0;
+
+// -------------------- UTILS --------------------
+float deg(float r) { return r * 180.0 / M_PI; }
+float rad(float d) { return d * M_PI / 180.0; }
+
+// clamp helper
+int clampAngle(int a) {
+  if (a < 0) return 0;
+  if (a > 180) return 180;
+  return a;
+}
+
+// -------------------- INVERSE KINEMATICS --------------------
+// Given desired foot pos (x,y,z) in robot/body coordinates, compute coxa, femur, tibia angles (degrees)
+// coordinate convention: x forward, y to robot right, z up (negative down). Adjust signs if your mech differs.
+bool cartesianToAngles(float x, float y, float z, float &alpha_deg, float &beta_deg, float &gamma_deg) {
+  // 1) compute planar distance from coxa rotation axis to foot projection (horizontal plane)
+  // coxa rotation axis is at (0,0,0) for each leg origin; coxa pivot to femur plane offset is length_coxa_offset
+  // project onto plane formed by femur/tibia after compensating coxa offset
+  // compute 'w' = distance from hip axis along ground to foot
+  float w = sqrt(x*x + y*y);
+  // consider coxa offset (distance from hip rotation to femur plane)
+  float v = w - length_coxa_offset;
+  // guard against impossible geometry
+  float D = (v*v + z*z - length_femur*length_femur - length_tibia*length_tibia) / (2 * length_femur * length_tibia);
+  if (D < -1.0 || D > 1.0) {
+    // unreachable
+    return false;
+  }
+  // knee angle (beta) using cosine law
+  float beta = acos(D); // radians
+
+  // angle from femur to line (v,z)
+  float phi = atan2(z, v);
+  // another term from cosine law
+  float psi = acos((length_femur*length_femur + v*v + z*z - length_tibia*length_tibia) / (2 * length_femur * sqrt(v*v + z*z)));
+  float alpha = phi + psi; // femur elevation angle (radians)
+
+  // coxa rotation gamma (in-plane) from x,y
+  float gamma = atan2(y, x); // radians
+
+  // convert to degrees
+  alpha_deg = deg(alpha);
+  beta_deg  = deg(beta);
+  gamma_deg = deg(gamma);
+
+  return true;
+}
+
+// Map (alpha, beta, gamma) to servo angles for each leg — this mapping depends on how your servos mounted.
+// This mapping includes the per-leg sign/orientation adjustments. You will likely need to tweak offsets.
+void anglesToServo(int leg, float alpha_deg, float beta_deg, float gamma_deg) {
+  // The mapping below follows the SunFounder-style mapping:
+  //   servo[leg][0] = coxa (rotation around vertical) -> derived from gamma
+  //   servo[leg][1] = femur (shoulder up/down) -> derived from alpha
+  //   servo[leg][2] = tibia (knee) -> derived from beta
+  //
+  // BUT each leg orientation differs (front/back, left/right). We apply transforms per-leg:
+  float a=alpha_deg, b=beta_deg, g=gamma_deg;
+  int s0, s1, s2;
+
+  if (leg == 0) {        // front-left
+    s0 = clampAngle(int(90 + g));        // coxa
+    s1 = clampAngle(int(90 - a));        // femur
+    s2 = clampAngle(int(90 + b));        // tibia
+  } else if (leg == 1) { // front-right
+    s0 = clampAngle(int(90 + g));       
+    s1 = clampAngle(int(90 + a));
+    s2 = clampAngle(int(90 - b));
+  } else if (leg == 2) { // rear-left
+    s0 = clampAngle(int(90 + g));
+    s1 = clampAngle(int(90 + a));
+    s2 = clampAngle(int(90 - b));
+  } else {               // leg == 3 rear-right
+    s0 = clampAngle(int(90 + g));
+    s1 = clampAngle(int(90 - a));
+    s2 = clampAngle(int(90 + b));
+  }
+
+  // apply neutral offsets (if you need per-servo offsets you can change neutralServo[][])
+  s0 = clampAngle(s0 + (neutralServo[leg][0] - 90));
+  s1 = clampAngle(s1 + (neutralServo[leg][1] - 90));
+  s2 = clampAngle(s2 + (neutralServo[leg][2] - 90));
+
+  servo[leg][0].write(s0);
+  servo[leg][1].write(s1);
+  servo[leg][2].write(s2);
+}
+
+// Set a foot target and immediately update servos via IK
+void setFootAndApply(int leg, float x, float y, float z) {
+  float a,b,g;
+  bool ok = cartesianToAngles(x,y,z,a,b,g);
+  if (!ok) {
+    // unreachable — just clamp z upwards to try to reach
+    float z2 = z + 10.0;
+    if (!cartesianToAngles(x,y,z2,a,b,g)) {
+      // if still not reachable, do not move this leg
+      return;
+    }
+  }
+  anglesToServo(leg, a, b, g);
+  // store target
+  footTarget[leg].x = x; footTarget[leg].y = y; footTarget[leg].z = z;
+}
+
+// -------------------- INITIALIZATION --------------------
+void setup() {
+  Serial.begin(9600); // HC-05 shares Serial pins; unplug while uploading
+  Serial.println("IK Quadruped starting...");
+
+  for (int i=0;i<NUM_LEGS;i++){
+    for (int j=0;j<3;j++){
+      servo[i][j].attach(servo_pin[i][j]);
+      delay(30);
+    }
+  }
+
+  // set default foot positions (square stance)
+  footTarget[0] = { default_x,  default_y, default_z };   // front-left
+  footTarget[1] = { default_x, -default_y, default_z };   // front-right (y negative for right)
+  footTarget[2] = { -default_x, default_y, default_z };   // rear-left (x negative for rear)
+  footTarget[3] = { -default_x,-default_y, default_z };   // rear-right
+
+  // apply initial pose
+  for (int i=0;i<NUM_LEGS;i++){
+    setFootAndApply(i, footTarget[i].x, footTarget[i].y, footTarget[i].z);
+    delay(100);
+  }
+  Serial.println("Ready: send F B L R W D S U");
+}
+
+// -------------------- BODY TILT --------------------
+// pitch: + = nose up (front legs higher), roll: + = lean right (right legs higher)
+void setBodyTilt(float pitch_deg, float roll_deg) {
+  bodyPitch = pitch_deg; bodyRoll = roll_deg;
+  // convert degrees to vertical offsets for front/rear and left/right
+  float pitchOffset = tan(rad(pitch_deg)) * 10.0; // scale factor — tune as needed
+  float rollOffset  = tan(rad(roll_deg))  * 10.0;
+  // apply offsets: front legs' z decreased by pitchOffset (nose down means more negative z)
+  Foot tmp[NUM_LEGS];
+  tmp[0] = footTarget[0];
+  tmp[1] = footTarget[1];
+  tmp[2] = footTarget[2];
+  tmp[3] = footTarget[3];
+
+  // Front legs: index 0,1 ; Rear legs: 2,3
+  tmp[0].z = footTarget[0].z - pitchOffset + (roll_deg>0? -rollOffset: rollOffset);
+  tmp[1].z = footTarget[1].z - pitchOffset + (roll_deg>0? rollOffset: -rollOffset);
+  tmp[2].z = footTarget[2].z + pitchOffset + (roll_deg>0? -rollOffset: rollOffset);
+  tmp[3].z = footTarget[3].z + pitchOffset + (roll_deg>0? rollOffset: -rollOffset);
+
+  // apply
+  for (int i=0;i<NUM_LEGS;i++) {
+    setFootAndApply(i, tmp[i].x, tmp[i].y, tmp[i].z);
+    delay(30);
+  }
+}
+
+// -------------------- GAIT PRIMITIVES --------------------
+// simple trot-like gait using phase offsets
+void stepGait(float stride, float lift, float cycles, float speed) {
+  // cycles: how many cycles to run (1.0 = one full 2*PI)
+  for (float t=0; t < 2.0*M_PI*cycles; t += speed) {
+    for (int leg=0; leg<NUM_LEGS; leg++) {
+      float phase = leg * (M_PI/2.0); // 90 deg offsets
+      float swing = stride * sin(t + phase);
+      float footLift = lift * max(0.0f, sin(t + phase));
+      // base stance depends on leg being front/rear
+      float base_x = (leg==0 || leg==1) ? default_x : -default_x;
+      float base_y = (leg==0 || leg==2) ?  default_y : -default_y;
+      float tx = base_x + swing;
+      float ty = base_y;
+      float tz = default_z - footLift; // remember negative is down
+      // add body tilt compensation
+      // very small immediate adjust — for more advanced slope compensation use IMU
+      setFootAndApply(leg, tx, ty, tz);
+    }
+    delay(20);
+  }
+}
+
+// helper wrappers
+void gaitForward(int cycles)  { stepGait(walkStride, liftHeight, cycles, gaitSpeed); }
+void gaitBackward(int cycles) { stepGait(-walkStride, liftHeight, cycles, gaitSpeed); }
+void gaitTurnLeft(int cycles)  { stepGait(turnFactor, liftHeight, cycles, gaitSpeed); }
+void gaitTurnRight(int cycles) { stepGait(-turnFactor, liftHeight, cycles, gaitSpeed); }
+
+// wavy dance
+void wavyDance(int reps) {
+  for (int r=0;r<reps;r++){
+    for (float t=0; t < 2.0*M_PI; t += danceSpeed) {
+      for (int leg=0; leg<NUM_LEGS; leg++){
+        float phase = leg * (M_PI/2.0);
+        float wave = 25.0 * sin(t + phase); // amplitude
+        float base_x = (leg==0 || leg==1) ? default_x : -default_x;
+        float base_y = (leg==0 || leg==2) ? default_y : -default_y;
+        float tx = base_x + wave;
+        float ty = base_y;
+        float tz = default_z + 10.0 * sin(t + phase + M_PI/4.0);
+        setFootAndApply(leg, tx, ty, tz);
+      }
+      delay(25);
+    }
+  }
+}
+
+// -------------------- POSTURES --------------------
+void sitDown() {
+  for (int i=0;i<NUM_LEGS;i++) setFootAndApply(i, footTarget[i].x, footTarget[i].y, default_z + 20.0);
+  delay(700);
+}
+void standUp() {
+  for (int i=0;i<NUM_LEGS;i++) setFootAndApply(i, footTarget[i].x, footTarget[i].y, default_z);
+  delay(700);
+}
+
+// -------------------- MAIN LOOP --------------------
+void loop() {
+  if (Serial.available()) {
+    incoming = Serial.read();
+    incoming = toupper(incoming);
+    Serial.print("Cmd: "); Serial.println(incoming);
+    switch (incoming) {
+      case 'F': gaitForward(1); break;
+      case 'B': gaitBackward(1); break;
+      case 'L': gaitTurnLeft(1); break;
+      case 'R': gaitTurnRight(1); break;
+      case 'W': stepGait(walkStride, liftHeight, 1, gaitSpeed); break;
+      case 'D': wavyDance(2); break;
+      case 'S': sitDown(); break;
+      case 'U': standUp(); break;
+      // quick tilt commands (optional)
+      case '1': setBodyTilt( 6.0, 0.0); break; // pitch up
+      case '2': setBodyTilt(-6.0, 0.0); break; // pitch down
+      case '3': setBodyTilt(0.0, 6.0); break;  // roll right
+      case '4': setBodyTilt(0.0,-6.0); break;  // roll left
+      default: break;
+    }
+    while (Serial.available()) Serial.read(); // flush extras
+  }
+}
