@@ -1,0 +1,129 @@
+This document explains the complete wiring of ARACHNOID,
+a 12-DOF quadruped robot that uses an Arduino Nano, MPU6050 IMU, OLED display, Bluetooth module, 
+servo expansion board, and a BMS-protected Li-ion battery, enabling self-balancing using a PID control system.
+
+  🔋 1. Power System (Battery + BMS)
+Components
+
+2S Li-ion Battery (7.4V)
+
+BMS Battery Protection Module
+
+Connections
+
+Battery → BMS input
+
+BMS P+ (Output +) → Servo Expansion Board V+
+
+BMS GND (Output −) → Common Ground rail
+
+⚠️ Important:
+
+Servos must NOT be powered from Arduino 5V
+
+All components share a common ground
+
+⚙️ 2. Arduino Nano Power
+Arduino Pin	Connection
+VIN	BMS P+ (via regulator if needed)
+GND	Common Ground
+
+The Arduino acts as the central controller for:
+
+Servo signals
+
+IMU data processing
+
+OLED display updates
+
+Bluetooth communication
+
+🦾 3. Servo Motors (12× SG90)
+Power
+
+Red wire → Servo Expansion Board V+ (5–6V from BMS)
+
+Brown/Black wire → GND
+
+Yellow/Orange wire → Signal pin
+
+Signal Pins (example mapping)
+Arduino Pin	Servo Function
+D2	Front Left Hip
+D3	Front Left Knee
+D4	Front Right Hip
+D5	Front Right Knee
+D6	Rear Left Hip
+D7	Rear Left Knee
+D8	Rear Right Hip
+D9	Rear Right Knee
+D10	Extra Servo
+D11	Extra Servo
+D12	Extra Servo
+D13	Extra Servo
+
+➡️ These pins can be reassigned in code if required.
+
+📟 4. MPU6050 (Accelerometer + Gyroscope)
+
+The MPU6050 provides real-time orientation data (pitch & roll) used by the PID controller for self-balancing.
+
+I2C Connections
+MPU6050	Arduino Nano
+VCC	5V
+GND	GND
+SDA	A4
+SCL	A5
+🖥️ 5. OLED Display (I2C)
+
+The OLED displays:
+
+Pitch & Roll angles
+
+System status
+
+Debug information
+
+I2C Connections
+OLED	Arduino Nano
+VCC	5V
+GND	GND
+SDA	A4
+SCL	A5
+
+📌 MPU6050 and OLED share the same I2C bus
+
+📡 6. Bluetooth Module (HC-05 / HC-06)
+
+Bluetooth enables:
+
+Wireless control
+
+Mode switching
+
+Debug commands
+
+Connections
+Bluetooth	Arduino
+VCC	5V
+GND	GND
+TX	RX (D0)
+RX	TX (D1 via voltage divider)
+
+⚠️ Voltage Divider Required
+Arduino TX (5V) → Bluetooth RX (3.3V safe)
+
+🔗 7. Common Ground (CRITICAL)
+
+All components share the same ground:
+
+BMS GND
+│
+├── Arduino GND
+├── Servo Expansion GND
+├── MPU6050 GND
+├── OLED GND
+└── Bluetooth GND
+
+
+❗ Without a common ground, PID control and servo stability will fail
