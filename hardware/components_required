@@ -1,6 +1,6 @@
 🧠 COMPONENTS YOU WANT TO CONNECT
 
-Battery + BMS module
+Battery + BMS module (Powering the expansion board you can use any power source to supply 5v to the expansion board)
 
 Arduino Nano
 
@@ -14,4 +14,4 @@ OLED display (I2C)
 
 Bluetooth module (HC-05/HC-06)
 
-Powering the expansion board you can use any power source to supply 5v to the expansion board
+
